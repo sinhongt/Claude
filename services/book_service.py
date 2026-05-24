@@ -1,9 +1,20 @@
-import re
+"""
+Book search — uses Anthropic SDK if ANTHROPIC_API_KEY is set,
+otherwise falls back to the local claude CLI (Claude Code sandbox).
+"""
+
 import json
+import os
+import re
 import subprocess
 
-_CLI = "claude"
+_MODEL_FAST = "claude-haiku-4-5-20251001"
 _CLI_CWD = "/tmp"
+
+_USE_SDK = bool(os.environ.get("ANTHROPIC_API_KEY"))
+if _USE_SDK:
+    import anthropic as _anthropic
+    _sdk_client = _anthropic.Anthropic()
 
 _SEARCH_SYSTEM = """你是一位博學的書籍專家，熟知各類文學作品。
 根據使用者的查詢，列出最多5本最相關的書籍。
@@ -11,22 +22,30 @@ _SEARCH_SYSTEM = """你是一位博學的書籍專家，熟知各類文學作品
 
 
 def _call(system: str, user: str) -> str:
-    cmd = [
-        _CLI, "-p",
-        "--system-prompt", system,
-        "--no-session-persistence",
-        "--output-format", "text",
-        "--model", "claude-haiku-4-5-20251001",
-    ]
-    result = subprocess.run(
-        cmd,
-        input=user,
-        capture_output=True,
-        text=True,
-        cwd=_CLI_CWD,
-        timeout=60,
-    )
-    return result.stdout.strip()
+    if _USE_SDK:
+        msg = _sdk_client.messages.create(
+            model=_MODEL_FAST,
+            max_tokens=2048,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        return msg.content[0].text.strip()
+    else:
+        result = subprocess.run(
+            [
+                "claude", "-p",
+                "--system-prompt", system,
+                "--no-session-persistence",
+                "--output-format", "text",
+                "--model", _MODEL_FAST,
+            ],
+            input=user,
+            capture_output=True,
+            text=True,
+            cwd=_CLI_CWD,
+            timeout=60,
+        )
+        return result.stdout.strip()
 
 
 def _parse_json(text: str):
@@ -76,5 +95,4 @@ async def search_books(query: str, search_type: str) -> list[dict]:
 
 
 async def fetch_book_details(ol_key: str) -> dict:
-    # All details already provided by search_books
     return {}

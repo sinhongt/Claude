@@ -1,34 +1,51 @@
+"""
+AI calls — uses Anthropic SDK if ANTHROPIC_API_KEY is set,
+otherwise falls back to the local claude CLI (Claude Code sandbox).
+"""
+
 import json
+import os
 import re
 import subprocess
-import shlex
 
-_MODEL_FAST = "claude-haiku-4-5-20251001"
 _MODEL_GOOD = "claude-sonnet-4-6"
+_MODEL_FAST = "claude-haiku-4-5-20251001"
+_CLI_CWD = "/tmp"
 
-_CLI = "claude"
-_CLI_CWD = "/tmp"  # neutral dir — avoids picking up project CLAUDE.md context
+_USE_SDK = bool(os.environ.get("ANTHROPIC_API_KEY"))
+if _USE_SDK:
+    import anthropic as _anthropic
+    _sdk_client = _anthropic.Anthropic()
 
 
-def _call(system: str, user: str, model: str = _MODEL_GOOD, max_tokens: int = 2048) -> str:
-    cmd = [
-        _CLI, "-p",
-        "--system-prompt", system,
-        "--no-session-persistence",
-        "--output-format", "text",
-        "--model", model,
-    ]
-    result = subprocess.run(
-        cmd,
-        input=user,
-        capture_output=True,
-        text=True,
-        cwd=_CLI_CWD,
-        timeout=120,
-    )
-    if result.returncode != 0 and not result.stdout.strip():
-        raise RuntimeError(f"Claude CLI error: {result.stderr[:300]}")
-    return result.stdout.strip()
+def _call(system: str, user: str, model: str = _MODEL_GOOD) -> str:
+    if _USE_SDK:
+        msg = _sdk_client.messages.create(
+            model=model,
+            max_tokens=2048,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        return msg.content[0].text.strip()
+    else:
+        # Claude Code sandbox: use local CLI which has OAuth credentials
+        result = subprocess.run(
+            [
+                "claude", "-p",
+                "--system-prompt", system,
+                "--no-session-persistence",
+                "--output-format", "text",
+                "--model", model,
+            ],
+            input=user,
+            capture_output=True,
+            text=True,
+            cwd=_CLI_CWD,
+            timeout=120,
+        )
+        if result.returncode != 0 and not result.stdout.strip():
+            raise RuntimeError(f"Claude CLI error: {result.stderr[:300]}")
+        return result.stdout.strip()
 
 
 def _parse_json(text: str) -> dict | list:
@@ -36,14 +53,14 @@ def _parse_json(text: str) -> dict | list:
     return json.loads(text)
 
 
-_CHAPTER_SYSTEM = """你是一位文學專家。給定一本書的基本資訊，你的任務是推導出該書合理的章節結構。
+_CHAPTER_SYSTEM = """你是一位文學專家。給定一本書的基本資訊，推導出該書合理的章節結構。
 根據書籍描述、主題和類型，推測每章的標題和簡短摘要。
-請以JSON格式回應，不要加任何說明文字或markdown代碼塊，直接輸出JSON。"""
+以JSON格式回應，不要加任何說明文字或markdown代碼塊，直接輸出JSON。"""
 
 _CHARACTER_SYSTEM = """你是一位創意寫作導師，專門為書籍創造生動的虛構敘述者角色。
 給定一本書的資訊，創造一個能以第一人稱敘述這本書的角色。
-這個角色必須與書籍的時代背景、主題和風格一致。
-請以JSON格式回應，不要加任何說明文字或markdown代碼塊，直接輸出JSON。"""
+角色必須與書籍的時代背景、主題和風格一致。
+以JSON格式回應，不要加任何說明文字或markdown代碼塊，直接輸出JSON。"""
 
 
 def synthesize_chapters(book: dict) -> list[dict]:
@@ -125,7 +142,7 @@ def narrate_chapter(character: dict, book: dict, chapter: dict) -> str:
 
 記住：用你自己的聲音說話，加入你的感受和觀點，讓敘述生動有趣。"""
 
-    return _call(system, user, model=_MODEL_GOOD, max_tokens=1024)
+    return _call(system, user, model=_MODEL_GOOD)
 
 
 def answer_question(character: dict, book: dict, question: str, history: list[dict]) -> str:
@@ -138,7 +155,6 @@ def answer_question(character: dict, book: dict, question: str, history: list[di
 - 如果讀者問到角色不可能知道的事（如出版日期），請以角色的方式婉轉回應
 - 使用繁體中文回應，長度適中（150-300字）"""
 
-    # Build conversation context for multi-turn
     history_text = ""
     for h in history[-6:]:
         role = "讀者" if h["role"] == "user" else character["name"]
@@ -146,4 +162,4 @@ def answer_question(character: dict, book: dict, question: str, history: list[di
 
     user = f"{history_text}讀者：{question}"
 
-    return _call(system, user, model=_MODEL_GOOD, max_tokens=1024)
+    return _call(system, user, model=_MODEL_GOOD)
