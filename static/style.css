@@ -1,0 +1,465 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans+TC:wght@400;500&display=swap');
+
+:root {
+  --bg: #faf6f0;
+  --card-bg: #fff9f2;
+  --parchment: #f0e6d0;
+  --border: #d4b896;
+  --text: #2c1810;
+  --muted: #7a5c44;
+  --gold: #8b6914;
+  --gold-light: #c49a2a;
+  --accent: #5a3e28;
+  --user-bubble: #e8f0fe;
+  --narrator-bubble: #f0e6d0;
+  --shadow: 0 2px 12px rgba(44, 24, 16, 0.08);
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Serif TC', serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.7;
+}
+
+/* ── Layout ── */
+.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+header {
+  background: var(--accent);
+  color: #faf6f0;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.05em; }
+header .subtitle { font-size: 0.85rem; opacity: 0.8; font-family: 'Noto Sans TC', sans-serif; }
+header nav { margin-left: auto; display: flex; gap: 16px; }
+header nav a {
+  color: #faf6f0;
+  text-decoration: none;
+  font-size: 0.9rem;
+  opacity: 0.85;
+  font-family: 'Noto Sans TC', sans-serif;
+  transition: opacity 0.2s;
+}
+header nav a:hover { opacity: 1; }
+
+main { padding: 40px 0 60px; }
+
+/* ── Search page ── */
+.hero { text-align: center; padding: 48px 0 32px; }
+.hero h2 { font-size: 2rem; color: var(--accent); margin-bottom: 8px; }
+.hero p { color: var(--muted); font-size: 1rem; }
+
+.search-form {
+  display: flex;
+  gap: 8px;
+  max-width: 600px;
+  margin: 28px auto 16px;
+}
+.search-form input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-family: 'Noto Serif TC', serif;
+  background: var(--card-bg);
+  color: var(--text);
+  transition: border-color 0.2s;
+}
+.search-form input:focus { outline: none; border-color: var(--gold); }
+
+.search-type-group {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 24px;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.search-type-group label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* ── Buttons ── */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #faf6f0;
+}
+.btn-primary:hover { background: var(--gold); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-gold {
+  background: var(--gold);
+  color: #faf6f0;
+}
+.btn-gold:hover { background: var(--gold-light); }
+
+.btn-outline {
+  background: transparent;
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+.btn-outline:hover { background: var(--accent); color: #faf6f0; }
+
+/* ── Book cards ── */
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 32px;
+}
+
+.book-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.book-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(44,24,16,0.12); }
+
+.book-card-cover {
+  width: 80px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 4px;
+  box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+}
+.book-card-cover-placeholder {
+  width: 80px; height: 110px;
+  background: var(--parchment);
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+  color: var(--gold);
+}
+.book-card-info { flex: 1; }
+.book-card-title { font-size: 1.05rem; font-weight: 700; color: var(--accent); }
+.book-card-author { font-size: 0.85rem; color: var(--muted); margin-top: 4px; font-family: 'Noto Sans TC', sans-serif; }
+.book-card-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: 'Noto Sans TC', sans-serif;
+}
+.book-card-row { display: flex; gap: 12px; align-items: flex-start; }
+
+/* ── Loading ── */
+.loading-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(250, 246, 240, 0.92);
+  z-index: 100;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+.loading-overlay.active { display: flex; }
+.spinner {
+  width: 48px; height: 48px;
+  border: 4px solid var(--border);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 1.1rem; color: var(--accent); }
+
+/* ── Narrator page ── */
+.narrator-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .narrator-layout { grid-template-columns: 1fr; }
+}
+
+.character-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 20px;
+}
+.character-avatar {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: var(--parchment);
+  border: 3px solid var(--gold);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+  margin: 0 auto 16px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.character-name { text-align: center; font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+.character-background { text-align: center; font-size: 0.85rem; color: var(--muted); margin-top: 4px; font-family: 'Noto Sans TC', sans-serif; }
+.character-style {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--parchment);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--gold);
+  text-align: center;
+  font-family: 'Noto Sans TC', sans-serif;
+}
+.character-traits { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; justify-content: center; }
+.trait-chip {
+  background: var(--parchment);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-family: 'Noto Sans TC', sans-serif;
+}
+.character-greeting {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--bg);
+  border-left: 3px solid var(--gold);
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+/* ── Chapters panel ── */
+.chapters-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.chapters-header {
+  background: var(--parchment);
+  padding: 16px 20px;
+  font-weight: 600;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  font-size: 1rem;
+}
+.chapters-body { display: flex; min-height: 400px; }
+.chapter-list {
+  width: 200px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  max-height: 600px;
+}
+.chapter-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  font-family: 'Noto Sans TC', sans-serif;
+  color: var(--muted);
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chapter-item:hover { background: var(--parchment); }
+.chapter-item.active {
+  background: var(--accent);
+  color: #faf6f0;
+  font-weight: 500;
+}
+.chapter-item .ch-num {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+.chapter-item.active .ch-num { background: rgba(255,255,255,0.2); }
+
+.narration-area {
+  flex: 1;
+  padding: 28px;
+  overflow-y: auto;
+  max-height: 600px;
+}
+.narration-placeholder {
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+  margin-top: 60px;
+  font-size: 0.95rem;
+}
+.narration-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 16px; }
+.narration-text {
+  font-size: 1rem;
+  line-height: 1.9;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+.narration-loading { text-align: center; padding: 40px; color: var(--muted); }
+.narration-loading .spinner { margin: 0 auto 12px; }
+
+/* ── QA page ── */
+.qa-layout { display: flex; flex-direction: column; height: calc(100vh - 72px); }
+.qa-book-header {
+  background: var(--parchment);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.9rem;
+  font-family: 'Noto Sans TC', sans-serif;
+}
+.qa-book-title { font-weight: 600; color: var(--accent); }
+.qa-char-name { color: var(--gold); }
+.qa-back { margin-left: auto; color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+.qa-back:hover { color: var(--accent); }
+
+.chat-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.chat-empty {
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+  margin: auto;
+  font-size: 0.95rem;
+}
+.chat-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.suggestion-chip {
+  padding: 8px 14px;
+  background: var(--parchment);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--accent);
+  transition: background 0.2s;
+  font-family: 'Noto Sans TC', sans-serif;
+  text-align: left;
+}
+.suggestion-chip:hover { background: var(--border); }
+
+.message { display: flex; gap: 12px; max-width: 80%; }
+.message.user { flex-direction: row-reverse; align-self: flex-end; }
+.message.narrator { align-self: flex-start; }
+
+.msg-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--parchment);
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--accent);
+}
+.message.user .msg-avatar { background: var(--user-bubble); }
+
+.msg-bubble {
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.message.user .msg-bubble {
+  background: var(--user-bubble);
+  border-bottom-right-radius: 4px;
+}
+.message.narrator .msg-bubble {
+  background: var(--narrator-bubble);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+.msg-name {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-family: 'Noto Sans TC', sans-serif;
+}
+
+.chat-input-area {
+  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+  background: var(--card-bg);
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+.chat-input-area textarea {
+  flex: 1;
+  padding: 12px 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-family: 'Noto Serif TC', serif;
+  resize: none;
+  background: var(--bg);
+  color: var(--text);
+  max-height: 120px;
+  transition: border-color 0.2s;
+}
+.chat-input-area textarea:focus { outline: none; border-color: var(--gold); }
+.chat-hint { font-size: 0.75rem; color: var(--muted); font-family: 'Noto Sans TC', sans-serif; margin-top: 4px; }
+
+/* ── Alerts ── */
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  font-family: 'Noto Sans TC', sans-serif;
+}
+.alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.alert-info { background: var(--parchment); color: var(--accent); border: 1px solid var(--border); }
+
+/* ── Utilities ── */
+.hidden { display: none !important; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.text-center { text-align: center; }
+.text-muted { color: var(--muted); font-size: 0.9rem; font-family: 'Noto Sans TC', sans-serif; }

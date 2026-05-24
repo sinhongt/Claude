@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>書語人 — 問答對話</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    main { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+    .qa-layout { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📚 書語人</h1>
+    <div class="subtitle">問答對話</div>
+  </div>
+  <nav>
+    <a href="/">搜尋書籍</a>
+    <a href="/narrator">敘述者</a>
+    <a href="/qa">問答</a>
+  </nav>
+</header>
+
+<main>
+  <!-- No session fallback -->
+  <div id="noSession" class="hidden text-center" style="padding:60px 24px">
+    <p class="text-muted">尚未選擇書籍，請先搜尋並創建敘述者。</p>
+    <a href="/" class="btn btn-primary mt-16" style="display:inline-block;text-decoration:none">前往搜尋書籍</a>
+  </div>
+
+  <div class="qa-layout" id="qaLayout" style="display:none">
+    <div class="qa-book-header">
+      <span>📖 <span class="qa-book-title" id="qaBookTitle"></span></span>
+      <span>✦</span>
+      <span>敘述者：<span class="qa-char-name" id="qaCharName"></span></span>
+      <a href="/narrator" class="qa-back">← 返回章節</a>
+    </div>
+
+    <div class="chat-thread" id="chatThread">
+      <div class="chat-empty" id="chatEmpty">
+        <div>向敘述者提出你的問題吧！</div>
+        <div class="chat-suggestions" id="suggestions">
+          <button class="suggestion-chip" onclick="fillSuggestion(this)">這本書的主要主題是什麼？</button>
+          <button class="suggestion-chip" onclick="fillSuggestion(this)">書中最令你印象深刻的是什麼？</button>
+          <button class="suggestion-chip" onclick="fillSuggestion(this)">你能描述一下故事的起源嗎？</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div style="flex:1">
+        <textarea id="questionInput" rows="1" placeholder="輸入問題… （Enter 送出，Shift+Enter 換行）"></textarea>
+        <div class="chat-hint">Enter 送出 · Shift+Enter 換行</div>
+      </div>
+      <button class="btn btn-primary" id="sendBtn">送出</button>
+    </div>
+  </div>
+</main>
+
+<script src="/static/app.js"></script>
+<script>
+const qaLayout = document.getElementById('qaLayout');
+const noSession = document.getElementById('noSession');
+const chatThread = document.getElementById('chatThread');
+const chatEmpty = document.getElementById('chatEmpty');
+const questionInput = document.getElementById('questionInput');
+const sendBtn = document.getElementById('sendBtn');
+
+let sessionData = null;
+let isLoading = false;
+
+async function init() {
+  const sessionId = AppState.sessionId;
+  if (!sessionId) {
+    noSession.classList.remove('hidden');
+    return;
+  }
+
+  const book = AppState.book;
+  const character = AppState.character;
+  if (book && character) {
+    sessionData = { session_id: sessionId, book, character };
+    renderHeader();
+    qaLayout.style.display = 'flex';
+    return;
+  }
+
+  try {
+    sessionData = await apiGet(`/api/session/${sessionId}`);
+    AppState.book = sessionData.book;
+    AppState.character = sessionData.character;
+    renderHeader();
+    qaLayout.style.display = 'flex';
+  } catch {
+    noSession.classList.remove('hidden');
+  }
+}
+
+function renderHeader() {
+  document.getElementById('qaBookTitle').textContent = sessionData.book.title;
+  document.getElementById('qaCharName').textContent = sessionData.character.name;
+  document.title = `書語人 — 與${sessionData.character.name}對話`;
+}
+
+async function sendQuestion(question) {
+  if (!question.trim() || isLoading || !sessionData) return;
+  isLoading = true;
+  sendBtn.disabled = true;
+
+  chatEmpty.style.display = 'none';
+  appendMessage('user', '我', question);
+
+  const typingEl = appendTyping();
+
+  try {
+    const data = await apiPost('/api/qa/ask', {
+      session_id: sessionData.session_id,
+      question,
+    });
+    typingEl.remove();
+    appendMessage('narrator', data.character_name, data.answer);
+  } catch (err) {
+    typingEl.remove();
+    appendMessage('narrator', '系統', `抱歉，發生錯誤：${err.message}`);
+  } finally {
+    isLoading = false;
+    sendBtn.disabled = false;
+    questionInput.focus();
+  }
+}
+
+function appendMessage(role, name, content) {
+  const msg = document.createElement('div');
+  msg.className = `message ${role}`;
+
+  const initials = role === 'user' ? '我' : getCharacterInitials(name);
+
+  msg.innerHTML = `
+    <div class="msg-avatar">${escHtml(initials)}</div>
+    <div>
+      <div class="msg-name">${escHtml(name)}</div>
+      <div class="msg-bubble">${escHtml(content)}</div>
+    </div>`;
+
+  chatThread.appendChild(msg);
+  chatThread.scrollTop = chatThread.scrollHeight;
+  return msg;
+}
+
+function appendTyping() {
+  const msg = document.createElement('div');
+  msg.className = 'message narrator';
+  const charName = sessionData?.character?.name || '敘述者';
+  msg.innerHTML = `
+    <div class="msg-avatar">${escHtml(getCharacterInitials(charName))}</div>
+    <div>
+      <div class="msg-name">${escHtml(charName)}</div>
+      <div class="msg-bubble" style="color:var(--muted);font-style:italic">正在思考中…</div>
+    </div>`;
+  chatThread.appendChild(msg);
+  chatThread.scrollTop = chatThread.scrollHeight;
+  return msg;
+}
+
+function fillSuggestion(btn) {
+  questionInput.value = btn.textContent;
+  questionInput.focus();
+}
+
+// Auto-resize textarea
+questionInput.addEventListener('input', () => {
+  questionInput.style.height = 'auto';
+  questionInput.style.height = Math.min(questionInput.scrollHeight, 120) + 'px';
+});
+
+questionInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const q = questionInput.value.trim();
+    if (q) {
+      questionInput.value = '';
+      questionInput.style.height = 'auto';
+      sendQuestion(q);
+    }
+  }
+});
+
+sendBtn.addEventListener('click', () => {
+  const q = questionInput.value.trim();
+  if (q) {
+    questionInput.value = '';
+    questionInput.style.height = 'auto';
+    sendQuestion(q);
+  }
+});
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

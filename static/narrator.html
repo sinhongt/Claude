@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>書語人 — 敘述者與章節</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📚 書語人</h1>
+    <div class="subtitle" id="headerSubtitle">敘述者與章節</div>
+  </div>
+  <nav>
+    <a href="/">搜尋書籍</a>
+    <a href="/narrator">敘述者</a>
+    <a href="/qa">問答</a>
+  </nav>
+</header>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">正在載入…</div>
+</div>
+
+<main>
+  <div class="container">
+    <div id="alertArea"></div>
+
+    <div class="narrator-layout" id="narratorLayout" style="display:none">
+      <!-- Character Card -->
+      <aside>
+        <div class="character-card">
+          <div class="character-avatar" id="charAvatar">書</div>
+          <div class="character-name" id="charName">載入中…</div>
+          <div class="character-background" id="charBackground"></div>
+          <div class="character-style" id="charStyle"></div>
+          <div class="character-traits" id="charTraits"></div>
+          <div class="character-greeting" id="charGreeting"></div>
+          <div style="margin-top:20px">
+            <a href="/qa" class="btn btn-gold" style="display:block;text-align:center;text-decoration:none">
+              💬 開始與角色對話
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Chapters Panel -->
+      <div class="chapters-panel">
+        <div class="chapters-header">📑 章節列表</div>
+        <div class="chapters-body">
+          <div class="chapter-list" id="chapterList"></div>
+          <div class="narration-area" id="narrationArea">
+            <div class="narration-placeholder">← 點擊左側章節，聆聽敘述者講述</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- No session fallback -->
+    <div id="noSession" class="text-center hidden" style="padding:60px 0">
+      <p class="text-muted">尚未選擇書籍。</p>
+      <a href="/" class="btn btn-primary mt-16" style="display:inline-block;text-decoration:none">前往搜尋書籍</a>
+    </div>
+  </div>
+</main>
+
+<script src="/static/app.js"></script>
+<script>
+const alertArea = document.getElementById('alertArea');
+const narratorLayout = document.getElementById('narratorLayout');
+const noSession = document.getElementById('noSession');
+const loadingOverlay = document.getElementById('loadingOverlay');
+
+let sessionData = null;
+
+async function init() {
+  const sessionId = AppState.sessionId;
+  if (!sessionId) {
+    noSession.classList.remove('hidden');
+    return;
+  }
+
+  // Try local state first for speed
+  const book = AppState.book;
+  const character = AppState.character;
+  const chapters = AppState.chapters;
+
+  if (book && character && chapters?.length) {
+    sessionData = { session_id: sessionId, book, character, chapters };
+    renderPage(sessionData);
+    return;
+  }
+
+  // Fallback: fetch from server
+  showLoading(loadingOverlay, '正在恢復工作階段…');
+  try {
+    sessionData = await apiGet(`/api/session/${sessionId}`);
+    AppState.book = sessionData.book;
+    AppState.character = sessionData.character;
+    AppState.chapters = sessionData.chapters;
+    renderPage(sessionData);
+  } catch (err) {
+    hideLoading(loadingOverlay);
+    noSession.classList.remove('hidden');
+  } finally {
+    hideLoading(loadingOverlay);
+  }
+}
+
+function renderPage(data) {
+  const { book, character, chapters } = data;
+
+  document.getElementById('headerSubtitle').textContent = `《${book.title}》`;
+  document.title = `書語人 — ${book.title}`;
+
+  // Character card
+  document.getElementById('charAvatar').textContent = getCharacterInitials(character.name);
+  document.getElementById('charName').textContent = character.name;
+  document.getElementById('charBackground').textContent = character.background || '';
+  document.getElementById('charStyle').textContent = `說話風格：${character.speaking_style || ''}`;
+
+  const traitsEl = document.getElementById('charTraits');
+  for (const trait of (character.personality_traits || [])) {
+    const chip = document.createElement('span');
+    chip.className = 'trait-chip';
+    chip.textContent = trait;
+    traitsEl.appendChild(chip);
+  }
+
+  document.getElementById('charGreeting').textContent = character.greeting || '';
+
+  // Chapter list
+  const chapterList = document.getElementById('chapterList');
+  for (const ch of chapters) {
+    const item = document.createElement('div');
+    item.className = 'chapter-item';
+    item.dataset.num = ch.number;
+    item.innerHTML = `<span class="ch-num">${ch.number}</span><span>${escHtml(ch.title)}</span>`;
+    item.addEventListener('click', () => loadNarration(ch.number, ch.title));
+    chapterList.appendChild(item);
+  }
+
+  narratorLayout.style.display = 'grid';
+
+  // Auto-load first chapter
+  if (chapters.length > 0) {
+    loadNarration(chapters[0].number, chapters[0].title);
+  }
+}
+
+async function loadNarration(chapterNumber, chapterTitle) {
+  // Update active state
+  document.querySelectorAll('.chapter-item').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.num) === chapterNumber);
+  });
+
+  const area = document.getElementById('narrationArea');
+  area.innerHTML = `
+    <div class="narration-loading">
+      <div class="spinner"></div>
+      <div>「${escHtml(sessionData.character.name)}」正在講述第 ${chapterNumber} 章…</div>
+    </div>`;
+
+  try {
+    const data = await apiPost('/api/narrate/chapter', {
+      session_id: sessionData.session_id,
+      chapter_number: chapterNumber,
+    });
+    area.innerHTML = `
+      <div class="narration-title">第 ${data.chapter_number} 章 — ${escHtml(data.chapter_title)}</div>
+      <div class="narration-text">${escHtml(data.narration)}</div>`;
+  } catch (err) {
+    area.innerHTML = `<div class="alert alert-error">載入失敗：${escHtml(err.message)}</div>`;
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

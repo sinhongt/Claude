@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>書語人 — 與書中角色對話</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📚 書語人</h1>
+    <div class="subtitle">與書中角色對話，聆聽故事</div>
+  </div>
+  <nav>
+    <a href="/">搜尋書籍</a>
+    <a href="/narrator">敘述者</a>
+    <a href="/qa">問答</a>
+  </nav>
+</header>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">正在為您創建敘述者角色，請稍候…</div>
+</div>
+
+<main>
+  <div class="container">
+    <div class="hero">
+      <h2>搜尋一本書</h2>
+      <p>輸入書名、作者或 ISBN，讓 AI 為您召喚書中的靈魂敘述者</p>
+    </div>
+
+    <form class="search-form" id="searchForm">
+      <input type="text" id="searchInput" placeholder="例：三體、Harry Potter、劉慈欣…" autocomplete="off" />
+      <button type="submit" class="btn btn-primary" id="searchBtn">搜尋</button>
+    </form>
+
+    <div class="search-type-group">
+      <label><input type="radio" name="searchType" value="title" checked /> 書名</label>
+      <label><input type="radio" name="searchType" value="author" /> 作者</label>
+      <label><input type="radio" name="searchType" value="isbn" /> ISBN</label>
+    </div>
+
+    <div id="alertArea"></div>
+    <div id="resultsArea" class="book-grid"></div>
+  </div>
+</main>
+
+<script src="/static/app.js"></script>
+<script>
+const searchForm = document.getElementById('searchForm');
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const resultsArea = document.getElementById('resultsArea');
+const alertArea = document.getElementById('alertArea');
+const loadingOverlay = document.getElementById('loadingOverlay');
+
+searchForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const query = searchInput.value.trim();
+  if (!query) return;
+  const searchType = document.querySelector('input[name="searchType"]:checked').value;
+
+  searchBtn.disabled = true;
+  searchBtn.textContent = '搜尋中…';
+  resultsArea.innerHTML = '';
+  alertArea.innerHTML = '';
+
+  try {
+    const data = await apiPost('/api/books/search', { query, search_type: searchType });
+    if (!data.books || data.books.length === 0) {
+      alertArea.innerHTML = '<div class="alert alert-info">找不到相關書籍，請嘗試其他關鍵字。</div>';
+      return;
+    }
+    renderBooks(data.books);
+  } catch (err) {
+    showError(alertArea, '搜尋失敗：' + err.message);
+  } finally {
+    searchBtn.disabled = false;
+    searchBtn.textContent = '搜尋';
+  }
+});
+
+function renderBooks(books) {
+  resultsArea.innerHTML = '';
+  for (const book of books) {
+    const card = document.createElement('div');
+    card.className = 'book-card';
+
+    const coverHtml = book.cover_url
+      ? `<img class="book-card-cover" src="${book.cover_url}" alt="封面" onerror="this.style.display='none'" />`
+      : `<div class="book-card-cover-placeholder">📖</div>`;
+
+    const authorsText = book.authors?.length ? book.authors.join('、') : '未知作者';
+    const yearText = book.year ? `（${book.year}）` : '';
+    const desc = book.description || '暫無簡介';
+
+    card.innerHTML = `
+      <div class="book-card-row">
+        ${coverHtml}
+        <div class="book-card-info">
+          <div class="book-card-title">${escHtml(book.title)}</div>
+          <div class="book-card-author">${escHtml(authorsText)} ${yearText}</div>
+          <div class="book-card-desc">${escHtml(desc)}</div>
+        </div>
+      </div>
+      <button class="btn btn-gold" data-book='${encodeURIComponent(JSON.stringify(book))}'>
+        ✨ 召喚敘述者角色
+      </button>`;
+
+    card.querySelector('button').addEventListener('click', (e) => {
+      const bookData = JSON.parse(decodeURIComponent(e.currentTarget.dataset.book));
+      createNarrator(bookData);
+    });
+
+    resultsArea.appendChild(card);
+  }
+}
+
+async function createNarrator(book) {
+  showLoading(loadingOverlay, `正在為《${book.title}》創建敘述者角色，請稍候（約需 15-30 秒）…`);
+  alertArea.innerHTML = '';
+
+  try {
+    const data = await apiPost('/api/books/create-narrator', { book });
+    AppState.sessionId = data.session_id;
+    AppState.book = data.book;
+    AppState.character = data.character;
+    AppState.chapters = data.chapters;
+    navigateTo('narrator');
+  } catch (err) {
+    hideLoading(loadingOverlay);
+    showError(alertArea, '無法創建敘述者：' + err.message);
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
