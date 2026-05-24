@@ -1,5 +1,3 @@
-import os
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -8,14 +6,7 @@ from models.schemas import BookSearchRequest, CreateNarratorRequest, ChapterNarr
 from services import book_service, claude_service, session_store
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise RuntimeError("請設定環境變數 ANTHROPIC_API_KEY")
-    yield
-
-
-app = FastAPI(title="書語人 API", lifespan=lifespan)
+app = FastAPI(title="書語人 API")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

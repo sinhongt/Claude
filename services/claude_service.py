@@ -1,41 +1,56 @@
 import json
 import re
-import anthropic
+import subprocess
+import shlex
 
-client = anthropic.Anthropic()
-MODEL = "claude-sonnet-4-6"
+_MODEL_FAST = "claude-haiku-4-5-20251001"
+_MODEL_GOOD = "claude-sonnet-4-6"
+
+_CLI = "claude"
+_CLI_CWD = "/tmp"  # neutral dir — avoids picking up project CLAUDE.md context
+
+
+def _call(system: str, user: str, model: str = _MODEL_GOOD, max_tokens: int = 2048) -> str:
+    cmd = [
+        _CLI, "-p",
+        "--system-prompt", system,
+        "--no-session-persistence",
+        "--output-format", "text",
+        "--model", model,
+    ]
+    result = subprocess.run(
+        cmd,
+        input=user,
+        capture_output=True,
+        text=True,
+        cwd=_CLI_CWD,
+        timeout=120,
+    )
+    if result.returncode != 0 and not result.stdout.strip():
+        raise RuntimeError(f"Claude CLI error: {result.stderr[:300]}")
+    return result.stdout.strip()
+
+
+def _parse_json(text: str) -> dict | list:
+    text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
+    return json.loads(text)
+
 
 _CHAPTER_SYSTEM = """你是一位文學專家。給定一本書的基本資訊，你的任務是推導出該書合理的章節結構。
 根據書籍描述、主題和類型，推測每章的標題和簡短摘要。
-請以 JSON 格式回應，不要加入任何說明文字或 markdown 代碼塊，直接輸出 JSON。"""
+請以JSON格式回應，不要加任何說明文字或markdown代碼塊，直接輸出JSON。"""
 
 _CHARACTER_SYSTEM = """你是一位創意寫作導師，專門為書籍創造生動的虛構敘述者角色。
 給定一本書的資訊，創造一個能以第一人稱敘述這本書的角色。
 這個角色必須與書籍的時代背景、主題和風格一致。
-請以 JSON 格式回應，不要加入任何說明文字或 markdown 代碼塊，直接輸出 JSON。"""
-
-
-def _call_claude(system: str, user: str, max_tokens: int = 2048) -> str:
-    message = client.messages.create(
-        model=MODEL,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return message.content[0].text
-
-
-def _parse_json(text: str) -> dict | list:
-    # Strip markdown code blocks if present
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    return json.loads(text)
+請以JSON格式回應，不要加任何說明文字或markdown代碼塊，直接輸出JSON。"""
 
 
 def synthesize_chapters(book: dict) -> list[dict]:
     page_count = book.get("page_count") or 250
-    estimated = max(5, min(20, page_count // 25))
+    estimated = max(5, min(15, page_count // 25))
 
-    user_prompt = f"""書名：{book['title']}
+    user = f"""書名：{book['title']}
 作者：{', '.join(book.get('authors', ['未知']))}
 出版年份：{book.get('year', '不詳')}
 主題：{', '.join(book.get('subjects', []))}
@@ -46,20 +61,20 @@ def synthesize_chapters(book: dict) -> list[dict]:
 
     for _ in range(2):
         try:
-            raw = _call_claude(_CHAPTER_SYSTEM, user_prompt)
+            raw = _call(_CHAPTER_SYSTEM, user, model=_MODEL_GOOD)
             data = _parse_json(raw)
             chapters = data if isinstance(data, list) else data.get("chapters", [])
-            return chapters
-        except (json.JSONDecodeError, KeyError):
+            if chapters:
+                return chapters
+        except (json.JSONDecodeError, KeyError, RuntimeError):
             continue
 
-    # Fallback generic chapters
     return [{"number": i, "title": f"第 {i} 章", "summary": "本章內容"} for i in range(1, 6)]
 
 
 def create_narrator(book: dict, chapters: list[dict]) -> dict:
     chapter_titles = ", ".join(c.get("title", "") for c in chapters[:5])
-    user_prompt = f"""書名：{book['title']}
+    user = f"""書名：{book['title']}
 作者：{', '.join(book.get('authors', ['未知']))}
 年代：{book.get('year', '不詳')}
 主題：{', '.join(book.get('subjects', []))}
@@ -78,9 +93,9 @@ def create_narrator(book: dict, chapters: list[dict]) -> dict:
 
     for _ in range(2):
         try:
-            raw = _call_claude(_CHARACTER_SYSTEM, user_prompt)
+            raw = _call(_CHARACTER_SYSTEM, user, model=_MODEL_GOOD)
             return _parse_json(raw)
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, RuntimeError):
             continue
 
     return {
@@ -110,7 +125,7 @@ def narrate_chapter(character: dict, book: dict, chapter: dict) -> str:
 
 記住：用你自己的聲音說話，加入你的感受和觀點，讓敘述生動有趣。"""
 
-    return _call_claude(system, user, max_tokens=1024)
+    return _call(system, user, model=_MODEL_GOOD, max_tokens=1024)
 
 
 def answer_question(character: dict, book: dict, question: str, history: list[dict]) -> str:
@@ -123,12 +138,12 @@ def answer_question(character: dict, book: dict, question: str, history: list[di
 - 如果讀者問到角色不可能知道的事（如出版日期），請以角色的方式婉轉回應
 - 使用繁體中文回應，長度適中（150-300字）"""
 
-    messages = list(history[-10:]) + [{"role": "user", "content": question}]
+    # Build conversation context for multi-turn
+    history_text = ""
+    for h in history[-6:]:
+        role = "讀者" if h["role"] == "user" else character["name"]
+        history_text += f"{role}：{h['content']}\n\n"
 
-    msg = client.messages.create(
-        model=MODEL,
-        max_tokens=1024,
-        system=system,
-        messages=messages,
-    )
-    return msg.content[0].text
+    user = f"{history_text}讀者：{question}"
+
+    return _call(system, user, model=_MODEL_GOOD, max_tokens=1024)
