@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>羅馬手記 · Res Gestae</title>
+<style>
+  :root{
+    --marble-white:#f2efe9;
+    --marble-grey:#cfc9bd;
+    --marble-vein:#a8a196;
+    --marble-dark:#8b8377;
+    --leather:#5c1a1a;
+    --leather-dark:#3a0f0f;
+    --leather-highlight:#7a2727;
+    --gold:#c9a44c;
+    --gold-bright:#f2d98d;
+    --gold-dark:#8a6a2c;
+    --parchment:#ecdcb8;
+    --parchment-shadow:#d8c49a;
+    --parchment-edge:#b89b6a;
+    --ink:#2b2420;
+    --ink-faded:#574d3f;
+    --wax:#7a1f1f;
+    --wax-dark:#4c0f0f;
+    --wax-highlight:#b23b3b;
+    --shadow-soft: 0 18px 44px rgba(0,0,0,.45);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family: Georgia, 'Noto Serif TC', 'PMingLiU', 'Times New Roman', serif;
+    background:
+      radial-gradient(ellipse at 50% 28%, #2c2822 0%, #17130f 62%, #0a0908 100%);
+    color: var(--ink);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{ font-family:inherit; cursor:pointer; }
+  input,textarea{ font-family:inherit; }
+
+  .defs-lib{ position:absolute; width:0; height:0; overflow:hidden; }
+
+  /* ===== GOLD TEXT ===== */
+  .gold-text{
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold) 45%, var(--gold-dark));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter: drop-shadow(0 1px 0 rgba(255,255,255,.18));
+  }
+
+  /* ===== STAGE / STATE MACHINE ===== */
+  .stage{
+    position:relative; width:100vw; height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    perspective: 1800px;
+  }
+  .view{
+    position:absolute;
+    width:min(92vw, 760px); height:min(90vh, 900px);
+    display:flex; opacity:0; visibility:hidden; pointer-events:none;
+    transform: rotateY(-16deg) translateZ(-90px);
+    transform-origin:left center;
+    transition: opacity .55s ease, transform .65s cubic-bezier(.22,.61,.36,1);
+  }
+  .stage[data-view="COVER"] .view-cover,
+  .stage[data-view="TOC"] .view-toc,
+  .stage[data-view="READ"] .view-read,
+  .stage[data-view="EDIT"] .view-edit{
+    opacity:1; visibility:visible; pointer-events:auto;
+    transform: rotateY(0deg) translateZ(0);
+  }
+  @media (prefers-reduced-motion: reduce){
+    .view{ transition: opacity .3s ease; transform:none !important; }
+  }
+  @media (max-width: 640px){
+    .stage{ perspective:none; }
+    .view{ transform: translateY(26px); }
+  }
+
+  /* ===== COVER ===== */
+  .cover{
+    position:relative; width:100%; height:100%; border-radius:8px; cursor:pointer;
+    background: linear-gradient(160deg, var(--leather-highlight), var(--leather) 40%, var(--leather-dark) 100%);
+    box-shadow: var(--shadow-soft), inset 0 0 0 2px rgba(201,164,76,.45), inset 0 0 70px rgba(0,0,0,.55);
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    outline:none;
+  }
+  .cover-texture{ position:absolute; inset:0; filter:url(#marble-noise); mix-blend-mode:overlay; opacity:.28; pointer-events:none; }
+  .cover-bust-watermark{ position:absolute; width:66%; height:auto; opacity:.09; color:var(--gold-bright); top:6%; left:17%; pointer-events:none; }
+  .cover-frame{
+    position:relative; z-index:1; text-align:center; padding:44px 36px;
+    border:2px solid rgba(201,164,76,.55); border-radius:4px; margin:34px;
+    display:flex; flex-direction:column; align-items:center; gap:18px;
+  }
+  .meander-strip{ width:220px; max-width:60vw; height:16px; color:var(--gold); }
+  .meander-strip.small{ width:150px; height:12px; }
+  .cover-title{ font-size:clamp(2.1rem, 6vw, 3.3rem); letter-spacing:.16em; margin:0; text-transform:uppercase; }
+  .cover-subtitle{ letter-spacing:.28em; font-size:.82rem; color:var(--gold-bright); text-transform:uppercase; opacity:.9; margin:0; }
+  .cover-open-hint{
+    position:absolute; bottom:36px; left:50%; transform:translateX(-50%);
+    background:none; border:1px solid rgba(242,217,141,.5); color:var(--gold-bright);
+    padding:10px 22px; border-radius:999px; letter-spacing:.15em; font-size:.8rem;
+    text-transform:uppercase; z-index:1;
+  }
+  .cover-open-hint:hover{ background:rgba(242,217,141,.12); }
+
+  /* ===== PAGE / PARCHMENT ===== */
+  .page{
+    position:relative; width:100%; height:100%; background: var(--parchment);
+    border-radius:5px; box-shadow: var(--shadow-soft), inset 0 0 46px rgba(120,90,40,.25);
+    padding:34px 38px 28px; overflow-y:auto; display:flex; flex-direction:column;
+    clip-path: polygon(0% 1.2%, 2% 0%, 98% 0.6%, 100% 2.2%, 99.4% 98%, 97% 100%, 3% 99.4%, 0.6% 97%);
+  }
+  .page::before{
+    content:''; position:absolute; inset:0; filter:url(#parchment-noise);
+    mix-blend-mode:multiply; opacity:.5; pointer-events:none; border-radius:inherit;
+  }
+  .page::after{
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(120,90,40,.28) 100%);
+  }
+  .page-header{ display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:18px; position:relative; z-index:1; }
+  .page-header h2{
+    margin:0; letter-spacing:.14em; text-transform:uppercase; font-size:1.4rem; color:var(--ink);
+  }
+
+  /* ===== TOC ===== */
+  .toc-list{ display:flex; flex-direction:column; gap:10px; position:relative; z-index:1; flex:1; overflow-y:auto; padding-right:4px; }
+  .toc-row{
+    display:grid; grid-template-columns:auto auto 1fr auto auto; align-items:center; gap:14px;
+    background: rgba(255,255,255,.18); border:1px solid var(--parchment-edge); border-radius:6px;
+    padding:10px 14px; text-align:left; color:var(--ink); transition: background .2s ease, transform .2s ease;
+  }
+  .toc-row:hover{ background: rgba(255,255,255,.34); transform: translateX(2px); }
+  .toc-index{ font-variant:small-caps; letter-spacing:.05em; color:var(--ink-faded); min-width:28px; }
+  .toc-title{ font-size:1.05rem; }
+  .toc-date{ color:var(--ink-faded); font-size:.85rem; white-space:nowrap; }
+  .toc-seal{ position:relative; width:20px; height:20px; }
+  .seal-half{
+    position:absolute; inset:0; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, var(--wax-highlight), var(--wax) 55%, var(--wax-dark) 100%);
+    transition: transform .45s ease, opacity .45s ease;
+  }
+  .seal-half.left{ clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%); }
+  .seal-half.right{ clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%); }
+  .toc-row.cracking .seal-half.left{ transform: translate(-6px,-3px) rotate(-25deg); opacity:0; }
+  .toc-row.cracking .seal-half.right{ transform: translate(6px,-3px) rotate(25deg); opacity:0; }
+  .toc-empty{ display:none; flex-direction:column; align-items:center; gap:14px; margin:auto; text-align:center; color:var(--ink-faded); position:relative; z-index:1; }
+  .toc-empty svg{ width:120px; height:auto; color: var(--marble-dark); opacity:.5; }
+  .toc-actions{ display:flex; justify-content:center; gap:14px; margin-top:18px; position:relative; z-index:1; }
+  .btn-new-chapter, .btn-close-book{
+    border:1px solid var(--gold-dark); background: linear-gradient(180deg, var(--marble-white), var(--marble-grey));
+    color:var(--ink); padding:10px 20px; border-radius:6px; letter-spacing:.08em; font-size:.9rem;
+  }
+  .btn-new-chapter{ border-color: var(--gold); background: linear-gradient(180deg, var(--gold-bright), var(--gold)); }
+  .btn-new-chapter:hover, .btn-close-book:hover{ filter:brightness(1.06); }
+
+  /* ===== MOOD BADGES ===== */
+  .mood-badge{ color: var(--mood-color, var(--gold)); }
+  .mood-badge.small{ width:26px; height:26px; }
+  .mood-badge.large{ width:52px; height:52px; }
+
+  /* ===== READ VIEW ===== */
+  .btn-back-tab{
+    align-self:flex-start; background: var(--wax); color: var(--marble-white); border:none;
+    padding:8px 16px 8px 12px; border-radius:0 6px 6px 0; margin:-34px 0 18px -38px;
+    letter-spacing:.06em; font-size:.85rem; position:relative; z-index:1;
+    box-shadow: 2px 2px 6px rgba(0,0,0,.3);
+  }
+  .entry-meta{ display:flex; align-items:center; gap:16px; position:relative; z-index:1; }
+  .entry-title{ margin:0 0 4px; font-size:1.6rem; letter-spacing:.04em; }
+  .entry-date{ margin:0; color:var(--ink-faded); font-size:.9rem; letter-spacing:.08em; }
+  .entry-body{
+    position:relative; z-index:1; margin-top:18px; line-height:1.85; font-size:1.05rem;
+    white-space:pre-wrap; flex:1;
+  }
+  .entry-body::first-letter{ font-size:2.6em; float:left; line-height:.85; padding:.05em .08em 0 0; color:var(--gold-dark); font-weight:bold; }
+  .entry-actions{ display:flex; gap:14px; margin-top:22px; position:relative; z-index:1; }
+  .entry-actions button{
+    border:1px solid var(--parchment-edge); background: rgba(255,255,255,.3); color:var(--ink);
+    padding:9px 18px; border-radius:6px; font-size:.88rem; letter-spacing:.05em;
+  }
+  .entry-actions button:hover{ background: rgba(255,255,255,.5); }
+  #btn-delete-entry{ border-color: var(--wax); color: var(--wax-dark); }
+
+  /* ===== EDIT VIEW ===== */
+  .entry-title-input{
+    position:relative; z-index:1; border:none; background:transparent; border-bottom:1px solid var(--parchment-edge);
+    font-size:1.5rem; padding:6px 2px; color:var(--ink); letter-spacing:.03em; outline:none;
+  }
+  .entry-title-input:focus{ border-color: var(--gold-dark); }
+  .entry-title-input.shake{ animation: shake .4s; border-color:var(--wax); }
+  @keyframes shake{ 0%,100%{transform:translateX(0);} 25%{transform:translateX(-6px);} 75%{transform:translateX(6px);} }
+  .entry-date-input{
+    position:relative; z-index:1; margin-top:10px; align-self:flex-start; border:1px solid var(--parchment-edge);
+    background: rgba(255,255,255,.3); border-radius:4px; padding:6px 8px; color:var(--ink); outline:none;
+  }
+  .mood-picker{ position:relative; z-index:1; display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+  .mood-coin{
+    width:44px; height:44px; border-radius:50%; border:2px solid var(--parchment-edge);
+    background: radial-gradient(circle at 35% 30%, #fff8e8, var(--marble-grey));
+    display:flex; align-items:center; justify-content:center; color: var(--mood-color, var(--gold-dark));
+    opacity:.65; transition: all .2s ease;
+  }
+  .mood-coin svg{ width:24px; height:24px; }
+  .mood-coin.selected{
+    opacity:1; border-color: var(--mood-color, var(--gold));
+    box-shadow: 0 2px 6px rgba(0,0,0,.25), inset 0 0 0 2px rgba(255,255,255,.5);
+    transform: translateY(-2px);
+  }
+  .entry-body-input{
+    position:relative; z-index:1; margin-top:16px; flex:1; resize:none; border:none; background:transparent;
+    line-height:1.85; font-size:1.02rem; color:var(--ink); outline:none; min-height:200px;
+  }
+  .seal-save-row{ position:relative; z-index:1; display:flex; align-items:center; gap:16px; margin-top:16px; }
+  .seal-hint{ color:var(--ink-faded); font-size:.85rem; letter-spacing:.04em; }
+  .wax-seal{
+    width:64px; height:64px; border-radius:50%; border:none; background:none; padding:0;
+    position:relative; transition: transform .15s ease;
+  }
+  .wax-seal .seal-body{
+    position:absolute; inset:0; border-radius:50%;
+    background: radial-gradient(circle at 32% 28%, var(--wax-highlight), var(--wax) 55%, var(--wax-dark) 100%);
+    box-shadow: 0 4px 10px rgba(0,0,0,.4), inset 0 0 0 2px rgba(0,0,0,.15);
+  }
+  .wax-seal svg{ position:relative; width:60%; height:60%; margin:20%; color: rgba(242,217,141,.85); }
+  .wax-seal.pressed{ animation: seal-press .5s ease; }
+  @keyframes seal-press{
+    0%{ transform:scale(1); }
+    35%{ transform:scale(.86); }
+    60%{ transform:scale(1.08); }
+    100%{ transform:scale(1); }
+  }
+
+  /* ===== TOAST ===== */
+  .toast{
+    position:fixed; bottom:28px; left:50%; transform:translate(-50%, 20px);
+    background: var(--leather-dark); color: var(--gold-bright); padding:12px 22px;
+    border-radius:999px; border:1px solid var(--gold-dark); letter-spacing:.06em; font-size:.9rem;
+    opacity:0; pointer-events:none; transition: opacity .3s ease, transform .3s ease; z-index:50;
+  }
+  .toast.show{ opacity:1; transform:translate(-50%, 0); }
+
+  /* ===== CONFIRM OVERLAY ===== */
+  .overlay{
+    position:fixed; inset:0; background: rgba(10,8,7,.6); display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none; transition: opacity .25s ease; z-index:60;
+  }
+  .overlay.active{ opacity:1; pointer-events:auto; }
+  .confirm-plaque{
+    background: linear-gradient(180deg, var(--marble-white), var(--marble-grey)); border:1px solid var(--marble-dark);
+    border-radius:6px; padding:28px 30px; max-width:340px; text-align:center; box-shadow: var(--shadow-soft);
+    color: var(--ink);
+  }
+  .confirm-actions{ display:flex; justify-content:center; gap:14px; margin-top:18px; }
+  .confirm-actions button{ border-radius:6px; padding:9px 18px; font-size:.88rem; letter-spacing:.05em; border:1px solid var(--marble-dark); background:rgba(255,255,255,.5); }
+  #btn-confirm-delete{ border-color: var(--wax); background: var(--wax); color:var(--marble-white); }
+
+  /* ===== COLOPHON ===== */
+  .colophon{ position:absolute; bottom:10px; right:14px; display:flex; align-items:center; gap:6px; opacity:.4; z-index:1; }
+  .colophon svg{ width:20px; height:auto; color: var(--ink-faded); }
+  .colophon span{ font-size:.68rem; letter-spacing:.18em; color: var(--ink-faded); text-transform:uppercase; }
+</style>
+</head>
+<body>
+
+<svg class="defs-lib" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="marble-noise" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="4" seed="11" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 0.85
+                0 0 0 0 0.83
+                0 0 0 0 0.80
+                0.5 0.5 0.5 0 0"/>
+    </filter>
+    <filter id="parchment-noise" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 0.55
+                0 0 0 0 0.42
+                0 0 0 0 0.25
+                0.35 0.35 0.35 0 0"/>
+    </filter>
+
+    <pattern id="meander-pattern" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M0 15 H8 V5 H14 V15 H20" stroke="#c9a44c" stroke-width="2" fill="none"/>
+    </pattern>
+
+    <symbol id="icon-meander" viewBox="0 0 220 20">
+      <rect width="220" height="20" fill="url(#meander-pattern)"/>
+    </symbol>
+
+    <symbol id="icon-bust" viewBox="0 0 300 400">
+      <g fill="currentColor">
+        <ellipse cx="150" cy="112" rx="60" ry="70"/>
+        <path d="M118 168 H182 V206 H118 Z"/>
+        <path d="M40 400 V312 C40 250 82 214 150 214 C218 214 260 250 260 312 V400 Z"/>
+        <path d="M94 96 C110 76 130 66 150 66 C170 66 190 76 206 96" fill="none" stroke="currentColor" stroke-width="6" opacity=".5"/>
+        <path d="M90 88 L104 100 M108 78 L118 94 M210 88 L196 100 M192 78 L182 94" stroke="currentColor" stroke-width="5" opacity=".5" stroke-linecap="round"/>
+      </g>
+    </symbol>
+
+    <symbol id="icon-laurel" viewBox="0 0 220 60">
+      <g fill="currentColor">
+        <path d="M110 52 C92 42 72 22 62 6" stroke="currentColor" stroke-width="2" fill="none"/>
+        <ellipse cx="95" cy="43" rx="9" ry="4" transform="rotate(-30 95 43)"/>
+        <ellipse cx="82" cy="34" rx="9" ry="4" transform="rotate(-42 82 34)"/>
+        <ellipse cx="70" cy="23" rx="9" ry="4" transform="rotate(-56 70 23)"/>
+        <ellipse cx="60" cy="10" rx="8" ry="3.5" transform="rotate(-72 60 10)"/>
+        <path d="M110 52 C128 42 148 22 158 6" stroke="currentColor" stroke-width="2" fill="none"/>
+        <ellipse cx="125" cy="43" rx="9" ry="4" transform="rotate(30 125 43)"/>
+        <ellipse cx="138" cy="34" rx="9" ry="4" transform="rotate(42 138 34)"/>
+        <ellipse cx="150" cy="23" rx="9" ry="4" transform="rotate(56 150 23)"/>
+        <ellipse cx="160" cy="10" rx="8" ry="3.5" transform="rotate(72 160 10)"/>
+      </g>
+    </symbol>
+
+    <symbol id="icon-seal-emblem" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="4 3"/>
+      <text x="50" y="63" text-anchor="middle" font-size="42" font-family="Georgia, serif" font-weight="bold" fill="currentColor">R</text>
+    </symbol>
+
+    <!-- mood medallions -->
+    <symbol id="mood-laurel" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M24 34 C17 30 12 23 10 14" stroke="currentColor" stroke-width="2" fill="none"/>
+      <path d="M24 34 C31 30 36 23 38 14" stroke="currentColor" stroke-width="2" fill="none"/>
+      <g fill="currentColor">
+        <ellipse cx="16" cy="27" rx="4" ry="2" transform="rotate(-30 16 27)"/>
+        <ellipse cx="12" cy="20" rx="4" ry="2" transform="rotate(-50 12 20)"/>
+        <ellipse cx="32" cy="27" rx="4" ry="2" transform="rotate(30 32 27)"/>
+        <ellipse cx="36" cy="20" rx="4" ry="2" transform="rotate(50 36 20)"/>
+      </g>
+    </symbol>
+    <symbol id="mood-storm" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M26 10 L15 26 H23 L20 39 L34 20 H25 Z" fill="currentColor"/>
+    </symbol>
+    <symbol id="mood-dawn" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="24" cy="27" r="8" fill="currentColor"/>
+      <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="24" y1="8" x2="24" y2="14"/>
+        <line x1="10" y1="16" x2="14" y2="19"/>
+        <line x1="38" y1="16" x2="34" y2="19"/>
+        <line x1="6" y1="27" x2="12" y2="27"/>
+        <line x1="42" y1="27" x2="36" y2="27"/>
+      </g>
+    </symbol>
+    <symbol id="mood-calm" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M8 22 C13 17 16 27 21 22 C26 17 29 27 34 22 C37 19 38 20 40 22" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M8 30 C13 25 16 35 21 30 C26 25 29 35 34 30 C37 27 38 28 40 30" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="mood-sorrow" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M24 12 C30 22 34 28 24 36 C14 28 18 22 24 12 Z" fill="currentColor"/>
+    </symbol>
+    <symbol id="mood-struggle" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M24 10 L36 15 V25 C36 33 30 38 24 40 C18 38 12 33 12 25 V15 Z" fill="currentColor" opacity=".85"/>
+      <line x1="24" y1="14" x2="24" y2="36" stroke="var(--parchment,#ecdcb8)" stroke-width="2"/>
+    </symbol>
+    <symbol id="mood-reflection" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+      <ellipse cx="24" cy="24" rx="13" ry="8" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <circle cx="24" cy="24" r="4" fill="currentColor"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="stage" id="stage" data-view="COVER">
+
+  <section class="view view-cover">
+    <div class="cover" id="cover" role="button" tabindex="0" aria-label="開啟封面">
+      <div class="cover-texture"></div>
+      <svg class="cover-bust-watermark" viewBox="0 0 300 400"><use href="#icon-bust"/></svg>
+      <div class="cover-frame">
+        <svg class="meander-strip"><use href="#icon-meander"/></svg>
+        <h1 class="cover-title gold-text">羅馬手記</h1>
+        <p class="cover-subtitle">RES GESTAE · 我的人生篇章</p>
+        <svg class="meander-strip"><use href="#icon-meander"/></svg>
+      </div>
+      <button class="cover-open-hint" id="btn-open-cover" type="button">輕觸以開卷</button>
+    </div>
+  </section>
+
+  <section class="view view-toc">
+    <div class="page">
+      <header class="page-header">
+        <svg class="meander-strip small"><use href="#icon-meander"/></svg>
+        <h2>人生篇章</h2>
+        <svg class="meander-strip small"><use href="#icon-meander"/></svg>
+      </header>
+      <div class="toc-list" id="toc-list"></div>
+      <div class="toc-empty" id="toc-empty">
+        <svg viewBox="0 0 300 400"><use href="#icon-bust"/></svg>
+        <p>尚無篇章。點下方印記，寫下人生的第一頁。</p>
+      </div>
+      <div class="toc-actions">
+        <button class="btn-new-chapter" id="btn-new-chapter" type="button">✒ 新篇章</button>
+        <button class="btn-close-book" id="btn-close-book" type="button">閤上書本</button>
+      </div>
+      <div class="colophon"><svg viewBox="0 0 300 400"><use href="#icon-bust"/></svg><span>manu scriptum</span></div>
+    </div>
+  </section>
+
+  <section class="view view-read">
+    <div class="page">
+      <button class="btn-back-tab" id="btn-back-from-read" type="button">◂ 目錄</button>
+      <div class="entry-meta">
+        <svg class="mood-badge large" id="read-mood" viewBox="0 0 48 48"><use href="#mood-laurel"/></svg>
+        <div>
+          <h2 class="entry-title" id="read-title"></h2>
+          <p class="entry-date" id="read-date"></p>
+        </div>
+      </div>
+      <div class="entry-body" id="read-body"></div>
+      <div class="entry-actions">
+        <button id="btn-edit-entry" type="button">重寫此頁</button>
+        <button id="btn-delete-entry" type="button">撕去此頁</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="view view-edit">
+    <div class="page">
+      <button class="btn-back-tab" id="btn-back-from-edit" type="button">◂ 目錄</button>
+      <input class="entry-title-input" id="edit-title" placeholder="篇章標題……" maxlength="60">
+      <input type="date" class="entry-date-input" id="edit-date">
+      <div class="mood-picker" id="mood-picker"></div>
+      <textarea class="entry-body-input" id="edit-body" placeholder="今日，我……"></textarea>
+      <div class="seal-save-row">
+        <button class="wax-seal" id="btn-seal-save" type="button" aria-label="封緘存檔">
+          <span class="seal-body"></span>
+          <svg><use href="#icon-seal-emblem"/></svg>
+        </button>
+        <span class="seal-hint">按下蠟封以封緘存檔</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="overlay" id="confirm-overlay">
+  <div class="confirm-plaque">
+    <p>確定要撕去這一頁嗎？此頁一旦撕去，無法復原。</p>
+    <div class="confirm-actions">
+      <button id="btn-confirm-delete" type="button">撕去</button>
+      <button id="btn-cancel-delete" type="button">保留</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  var STORAGE_KEY = 'roman-journal-v1';
+
+  var MOOD_TAGS = [
+    { key:'laurel',     label:'桂冠 · 成就', symbol:'mood-laurel',     color:'#c9a44c' },
+    { key:'storm',      label:'風暴 · 動盪', symbol:'mood-storm',      color:'#7a1f1f' },
+    { key:'dawn',       label:'曙光 · 新生', symbol:'mood-dawn',       color:'#c98a3b' },
+    { key:'calm',       label:'靜海 · 平靜', symbol:'mood-calm',       color:'#5c7a86' },
+    { key:'sorrow',     label:'哀傷 · 失落', symbol:'mood-sorrow',     color:'#6b7280' },
+    { key:'struggle',   label:'戰場 · 挑戰', symbol:'mood-struggle',   color:'#7a5230' },
+    { key:'reflection', label:'神諭 · 省思', symbol:'mood-reflection', color:'#5c527a' }
+  ];
+
+  function moodByKey(key){
+    for (var i=0;i<MOOD_TAGS.length;i++){ if (MOOD_TAGS[i].key===key) return MOOD_TAGS[i]; }
+    return MOOD_TAGS[0];
+  }
+
+  /* ===== STORAGE ===== */
+  function loadEntries(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.entries)) return [];
+      return data.entries;
+    }catch(e){ return []; }
+  }
+  function saveEntries(entries){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ version:1, entries:entries })); }
+    catch(e){ /* storage unavailable */ }
+  }
+  function upsertEntry(entry){
+    var entries = loadEntries();
+    var idx = -1;
+    for (var i=0;i<entries.length;i++){ if (entries[i].id===entry.id){ idx=i; break; } }
+    if (idx>=0) entries[idx]=entry; else entries.push(entry);
+    saveEntries(entries);
+  }
+  function deleteEntryById(id){
+    saveEntries(loadEntries().filter(function(e){ return e.id!==id; }));
+  }
+  function getEntry(id){
+    var entries = loadEntries();
+    for (var i=0;i<entries.length;i++){ if (entries[i].id===id) return entries[i]; }
+    return null;
+  }
+  function makeId(){
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'e-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+  }
+
+  /* ===== HELPERS ===== */
+  function todayISO(){
+    var d = new Date();
+    var m = String(d.getMonth()+1).padStart(2,'0');
+    var day = String(d.getDate()).padStart(2,'0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+  function formatDate(iso){
+    if (!iso) return '';
+    var parts = iso.split('-');
+    if (parts.length!==3) return iso;
+    return parts[0] + '年 ' + parseInt(parts[1],10) + '月' + parseInt(parts[2],10) + '日';
+  }
+  var ROMAN = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+  function toRoman(num){
+    var res = '';
+    for (var i=0;i<ROMAN.length;i++){
+      while (num >= ROMAN[i][0]){ res += ROMAN[i][1]; num -= ROMAN[i][0]; }
+    }
+    return res || 'I';
+  }
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+  function prefersReducedMotion(){
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /* ===== STATE MACHINE ===== */
+  var stageEl = document.getElementById('stage');
+  var state = { view:'COVER', currentEntryId:null };
+  function setView(view){
+    state.view = view;
+    stageEl.dataset.view = view;
+  }
+
+  /* ===== TOC ===== */
+  var tocListEl = document.getElementById('toc-list');
+  var tocEmptyEl = document.getElementById('toc-empty');
+
+  function renderTOC(){
+    var entries = loadEntries().slice().sort(function(a,b){
+      if (a.date !== b.date) return (b.date||'').localeCompare(a.date||'');
+      return (b.createdAt||0) - (a.createdAt||0);
+    });
+    tocListEl.innerHTML = '';
+    if (entries.length===0){
+      tocEmptyEl.style.display = 'flex';
+      tocListEl.style.display = 'none';
+      return;
+    }
+    tocEmptyEl.style.display = 'none';
+    tocListEl.style.display = 'flex';
+    entries.forEach(function(entry, i){
+      var mood = moodByKey(entry.mood);
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'toc-row';
+      row.innerHTML =
+        '<span class="toc-index">' + toRoman(entries.length - i) + '</span>' +
+        '<span class="toc-seal"><span class="seal-half left"></span><span class="seal-half right"></span></span>' +
+        '<span class="toc-title">' + escapeHtml(entry.title || '無題') + '</span>' +
+        '<span class="toc-date">' + formatDate(entry.date) + '</span>' +
+        '<svg class="mood-badge small" viewBox="0 0 48 48" style="--mood-color:' + mood.color + '"><use href="#' + mood.symbol + '"/></svg>';
+      row.addEventListener('click', function(){ openEntry(entry.id, row); });
+      tocListEl.appendChild(row);
+    });
+  }
+
+  function openEntry(id, rowEl){
+    if (rowEl) rowEl.classList.add('cracking');
+    var delay = prefersReducedMotion() ? 0 : 420;
+    setTimeout(function(){ showEntry(id); }, delay);
+  }
+
+  function showEntry(id){
+    var entry = getEntry(id);
+    if (!entry){ renderTOC(); setView('TOC'); return; }
+    state.currentEntryId = id;
+    var mood = moodByKey(entry.mood);
+    document.getElementById('read-title').textContent = entry.title || '無題';
+    document.getElementById('read-date').textContent = formatDate(entry.date);
+    document.getElementById('read-body').textContent = entry.body || '';
+    var readMoodEl = document.getElementById('read-mood');
+    readMoodEl.querySelector('use').setAttribute('href', '#' + mood.symbol);
+    readMoodEl.style.setProperty('--mood-color', mood.color);
+    setView('READ');
+  }
+
+  /* ===== EDIT ===== */
+  var selectedMood = MOOD_TAGS[0].key;
+  var editDraftIsNew = false;
+  var autosaveTimer = null;
+
+  var editTitleEl = document.getElementById('edit-title');
+  var editDateEl = document.getElementById('edit-date');
+  var editBodyEl = document.getElementById('edit-body');
+  var moodPickerEl = document.getElementById('mood-picker');
+
+  function renderMoodPicker(selected){
+    selectedMood = selected || MOOD_TAGS[0].key;
+    moodPickerEl.innerHTML = '';
+    MOOD_TAGS.forEach(function(m){
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mood-coin' + (m.key===selectedMood ? ' selected' : '');
+      btn.style.setProperty('--mood-color', m.color);
+      btn.title = m.label;
+      btn.setAttribute('aria-label', m.label);
+      btn.innerHTML = '<svg viewBox="0 0 48 48"><use href="#' + m.symbol + '"/></svg>';
+      btn.addEventListener('click', function(){
+        selectedMood = m.key;
+        moodPickerEl.querySelectorAll('.mood-coin').forEach(function(b){ b.classList.remove('selected'); });
+        btn.classList.add('selected');
+        autosave();
+      });
+      moodPickerEl.appendChild(btn);
+    });
+  }
+
+  function openEditor(id, isNew){
+    var entry = getEntry(id);
+    if (!entry) return;
+    state.currentEntryId = id;
+    editDraftIsNew = !!isNew;
+    editTitleEl.value = entry.title || '';
+    editDateEl.value = entry.date || todayISO();
+    editBodyEl.value = entry.body || '';
+    renderMoodPicker(entry.mood);
+    setView('EDIT');
+    setTimeout(function(){ editTitleEl.focus(); }, 50);
+  }
+
+  function currentEditEntry(){
+    var id = state.currentEntryId;
+    var existing = getEntry(id) || { id:id, createdAt:Date.now() };
+    return {
+      id: id,
+      title: editTitleEl.value,
+      date: editDateEl.value || todayISO(),
+      body: editBodyEl.value,
+      mood: selectedMood,
+      createdAt: existing.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+  }
+
+  function autosave(){
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(function(){
+      if (!state.currentEntryId) return;
+      upsertEntry(currentEditEntry());
+    }, 800);
+  }
+  [editTitleEl, editDateEl, editBodyEl].forEach(function(el){
+    el.addEventListener('input', autosave);
+  });
+
+  function leaveEditor(){
+    var id = state.currentEntryId;
+    if (editDraftIsNew){
+      var entry = getEntry(id);
+      if (entry && !(entry.title||'').trim() && !(entry.body||'').trim()){
+        deleteEntryById(id);
+      }
+    }
+    editDraftIsNew = false;
+  }
+
+  /* ===== TOAST ===== */
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 1600);
+  }
+
+  /* ===== CONFIRM OVERLAY ===== */
+  var confirmOverlayEl = document.getElementById('confirm-overlay');
+  function showConfirm(){ confirmOverlayEl.classList.add('active'); }
+  function hideConfirm(){ confirmOverlayEl.classList.remove('active'); }
+  document.getElementById('btn-cancel-delete').addEventListener('click', hideConfirm);
+  document.getElementById('btn-confirm-delete').addEventListener('click', function(){
+    deleteEntryById(state.currentEntryId);
+    hideConfirm();
+    renderTOC();
+    setView('TOC');
+    showToast('此頁已撕去');
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && confirmOverlayEl.classList.contains('active')) hideConfirm();
+  });
+
+  /* ===== NAVIGATION WIRING ===== */
+  function openCover(){ renderTOC(); setView('TOC'); }
+  document.getElementById('btn-open-cover').addEventListener('click', openCover);
+  var coverEl = document.getElementById('cover');
+  coverEl.addEventListener('click', openCover);
+  coverEl.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openCover(); }
+  });
+
+  document.getElementById('btn-close-book').addEventListener('click', function(){ setView('COVER'); });
+
+  document.getElementById('btn-new-chapter').addEventListener('click', function(){
+    var entry = { id: makeId(), title:'', date: todayISO(), body:'', mood: MOOD_TAGS[0].key, createdAt: Date.now(), updatedAt: Date.now() };
+    upsertEntry(entry);
+    openEditor(entry.id, true);
+  });
+
+  document.getElementById('btn-back-from-read').addEventListener('click', function(){
+    renderTOC();
+    setView('TOC');
+  });
+
+  document.getElementById('btn-edit-entry').addEventListener('click', function(){
+    openEditor(state.currentEntryId, false);
+  });
+
+  document.getElementById('btn-delete-entry').addEventListener('click', showConfirm);
+
+  document.getElementById('btn-back-from-edit').addEventListener('click', function(){
+    leaveEditor();
+    renderTOC();
+    setView('TOC');
+  });
+
+  document.getElementById('btn-seal-save').addEventListener('click', function(){
+    var titleVal = editTitleEl.value.trim();
+    if (!titleVal){
+      editTitleEl.focus();
+      editTitleEl.classList.add('shake');
+      setTimeout(function(){ editTitleEl.classList.remove('shake'); }, 500);
+      return;
+    }
+    clearTimeout(autosaveTimer);
+    upsertEntry(currentEditEntry());
+    editDraftIsNew = false;
+
+    var sealBtn = this;
+    sealBtn.classList.add('pressed');
+    setTimeout(function(){ sealBtn.classList.remove('pressed'); }, 500);
+    showToast('已封緘於羊皮卷');
+
+    var id = state.currentEntryId;
+    var delay = prefersReducedMotion() ? 0 : 400;
+    setTimeout(function(){
+      renderTOC();
+      showEntry(id);
+    }, delay);
+  });
+
+  /* ===== INIT ===== */
+  renderTOC();
+  setView('COVER');
+})();
+</script>
+</body>
+</html>
